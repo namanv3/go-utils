@@ -14,9 +14,9 @@ func FromByteArray[T any](tokenBytes []byte) (T, error) {
 	return obj, err
 }
 
-func Contains[T comparable](list []T, element T) bool {
+func Contains[T comparable](list []T, elementToFind T) bool {
 	for _, elem := range list {
-		if elem == element {
+		if elem == elementToFind {
 			return true
 		}
 	}
