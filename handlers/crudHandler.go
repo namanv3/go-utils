@@ -21,7 +21,7 @@ type DefaultCRUDHandler[T any] struct {
 	elementName string
 }
 
-func NewHandler[T any](mongoClient mongodb.MongoClient[T], elementName string) CRUDHandler[T] {
+func NewCRUDHandler[T any](mongoClient mongodb.MongoClient[T], elementName string) CRUDHandler[T] {
 	return DefaultCRUDHandler[T]{
 		mongoClient: mongoClient,
 		elementName: elementName,
