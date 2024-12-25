@@ -17,6 +17,7 @@ type MongoClient[T any] interface {
 	InsertMany(objects []T, ctx context.Context) error
 	Find(query bson.M, ctx context.Context) (*T, error)
 	List(query bson.M, ctx context.Context) ([]T, error)
+	ListWithSortOptions(query bson.M, sortOptions bson.D, ctx context.Context) ([]T, error)
 	Update(query bson.M, updateFields bson.M, upsert bool, ctx context.Context) (*T, bool, error)
 	Delete(query bson.M, ctx context.Context) (deletedCount int64, err error)
 }
@@ -97,12 +98,16 @@ func (c DefaultMongoClient[T]) Find(query bson.M, ctx context.Context) (*T, erro
 }
 
 func (c DefaultMongoClient[T]) List(query bson.M, ctx context.Context) ([]T, error) {
+	return c.ListWithSortOptions(query, bson.D{}, ctx)
+}
+func (c DefaultMongoClient[T]) ListWithSortOptions(query bson.M, sortOptions bson.D, ctx context.Context) ([]T, error) {
 	db := c.client.Database(c.db)
 	collection := db.Collection(c.collection)
 
-	cursor, err := collection.Find(ctx, query)
+	opts := options.Find().SetSort(sortOptions)
+	cursor, err := collection.Find(ctx, query, opts)
 	if err != nil || cursor.Err() != nil {
-		helpers.LogError(err, "unexpected error when finding objects in mongo", map[string]any{"query": query, "collection": c.collection}, ctx)
+		helpers.LogError(err, "unexpected error when finding objects in mongo", map[string]any{"query": query, "sortOptions": sortOptions, "collection": c.collection}, ctx)
 		return nil, errors.New("unexpected error when finding objects in mongo")
 	}
 	defer cursor.Close(ctx)
