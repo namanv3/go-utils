@@ -22,3 +22,11 @@ func Contains[T comparable](list []T, elementToFind T) bool {
 	}
 	return false
 }
+
+func ListToMap[T any, K comparable](list []T, keyBuilder func(t T) K) map[K]T {
+	result := map[K]T{}
+	for _, element := range list {
+		result[keyBuilder(element)] = element
+	}
+	return result
+}
