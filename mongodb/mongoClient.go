@@ -17,6 +17,7 @@ type MongoClient[T any] interface {
 	InsertMany(objects []T, ctx context.Context) error
 	Find(query bson.M, ctx context.Context) (*T, error)
 	List(query bson.M, ctx context.Context) ([]T, error)
+	Aggregate(pipeline bson.A, ctx context.Context) ([]T, error)
 	ListWithSortOptions(query bson.M, sortOptions bson.D, ctx context.Context) ([]T, error)
 	Update(query bson.M, updateFields bson.M, upsert bool, ctx context.Context) (*T, bool, error)
 	Delete(query bson.M, ctx context.Context) (deletedCount int64, err error)
@@ -118,6 +119,28 @@ func (c DefaultMongoClient[T]) ListWithSortOptions(query bson.M, sortOptions bso
 		if err := cursor.Decode(&element); err != nil {
 			helpers.LogError(err, "unexpected error when decoding object found in mongo", map[string]any{"query": query, "current": cursor.Current, "collection": c.collection}, ctx)
 			return nil, errors.New("unexpected error when decoding object found in mongo")
+		}
+		elements = append(elements, element)
+	}
+	return elements, nil
+}
+
+func (c DefaultMongoClient[T]) Aggregate(pipeline bson.A, ctx context.Context) ([]T, error) {
+	db := c.client.Database(c.db)
+	collection := db.Collection(c.collection)
+
+	cursor, err := collection.Aggregate(context.TODO(), pipeline)
+	if err != nil || cursor.Err() != nil {
+		helpers.LogError(err, "unexpected error when finding objects in mongo using pipeline", map[string]any{"pipeline": pipeline, "collection": c.collection}, ctx)
+		return nil, errors.New("unexpected error when finding objects in mongo using pipeline")
+	}
+	defer cursor.Close(ctx)
+	elements := []T{}
+	for cursor.Next(ctx) {
+		var element T
+		if err := cursor.Decode(&element); err != nil {
+			helpers.LogError(err, "unexpected error when decoding object found in mongo using pipeline", map[string]any{"pipeline": pipeline, "collection": c.collection}, ctx)
+			return nil, errors.New("unexpected error when decoding object found in mongo using pipeline")
 		}
 		elements = append(elements, element)
 	}
