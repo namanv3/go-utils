@@ -24,18 +24,22 @@ func HandlerNameMiddleware(next http.Handler) http.Handler {
 }
 
 func CorsHandlerMiddleware(next http.Handler) http.Handler {
-	return CorsHandlerMiddlewareForHeaders(nil)(next)
+	return CorsHandlerMiddlewareForHeaders(nil, nil)(next)
 
 }
 
-func CorsHandlerMiddlewareForHeaders(allowedHeaders *string) func(next http.Handler) http.Handler {
+func CorsHandlerMiddlewareForHeaders(allowedHeaders, requestedAllowOriginURL *string) func(next http.Handler) http.Handler {
 	headers := "Content-Type, Authorization"
 	if allowedHeaders != nil {
 		headers = *allowedHeaders
 	}
+	allowOriginURL := "http://localhost"
+	if requestedAllowOriginURL != nil {
+		allowOriginURL = *requestedAllowOriginURL
+	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Access-Control-Allow-Origin", "http://localhost")
+			w.Header().Set("Access-Control-Allow-Origin", allowOriginURL)
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", headers)
 
