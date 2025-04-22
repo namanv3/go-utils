@@ -20,6 +20,7 @@ type MongoClient[T any] interface {
 	Aggregate(pipeline bson.A, ctx context.Context) ([]T, error)
 	ListWithSortOptions(query bson.M, sortOptions bson.D, ctx context.Context) ([]T, error)
 	Update(query bson.M, updateFields bson.M, upsert bool, ctx context.Context) (*T, bool, error)
+	UpdateMany(query bson.M, updateFields bson.M, upsert bool, ctx context.Context) (int64, bool, error)
 	Delete(query bson.M, ctx context.Context) (deletedCount int64, err error)
 }
 
@@ -168,6 +169,21 @@ func (c DefaultMongoClient[T]) Update(query bson.M, updateFields bson.M, upsert 
 		return nil, true, errors.New("unexpected error when decoding object updated in mongo")
 	}
 	return &object, true, nil
+}
+
+func (c DefaultMongoClient[T]) UpdateMany(query bson.M, updateFields bson.M, upsert bool, ctx context.Context) (int64, bool, error) {
+	db := c.client.Database(c.db)
+	collection := db.Collection(c.collection)
+
+	result, err := collection.UpdateMany(ctx, query, updateFields, options.Update().SetUpsert(upsert))
+	if err == mongo.ErrNoDocuments {
+		helpers.LogError(err, "no documents found for given query", map[string]any{"query": query, "update": updateFields, "upsert": upsert, "collection": c.collection}, ctx)
+		return 0, false, nil
+	} else if err != nil {
+		helpers.LogError(err, "unexpected error when updating object in mongo", map[string]any{"query": query, "update": updateFields, "upsert": upsert, "collection": c.collection}, ctx)
+		return 0, false, errors.New("unexpected error when updating object in mongo")
+	}
+	return result.ModifiedCount, true, nil
 }
 
 func (c DefaultMongoClient[T]) Delete(query bson.M, ctx context.Context) (deletedCount int64, err error) {
