@@ -20,6 +20,7 @@ type MongoClient[T any] interface {
 	Aggregate(pipeline bson.A, ctx context.Context) ([]T, error)
 	ListWithSortOptions(query bson.M, sortOptions bson.D, ctx context.Context) ([]T, error)
 	Update(query bson.M, updateFields bson.M, upsert bool, ctx context.Context) (*T, bool, error)
+	UpdateWithOptions(query bson.M, updateFields bson.M, updateOptions options.FindOneAndUpdateOptions, ctx context.Context) (*T, bool, error)
 	UpdateMany(query bson.M, updateFields bson.M, upsert bool, ctx context.Context) (int64, bool, error)
 	Delete(query bson.M, ctx context.Context) (deletedCount int64, err error)
 }
@@ -166,6 +167,29 @@ func (c DefaultMongoClient[T]) Update(query bson.M, updateFields bson.M, upsert 
 	var object T
 	if err := result.Decode(&object); err != nil {
 		helpers.LogError(err, "unexpected error when decoding object updated in mongo", map[string]any{"query": query, "update": updateFields, "upsert": upsert, "collection": c.collection}, ctx)
+		return nil, true, errors.New("unexpected error when decoding object updated in mongo")
+	}
+	return &object, true, nil
+}
+
+func (c DefaultMongoClient[T]) UpdateWithOptions(query bson.M, updateFields bson.M, updateOptions options.FindOneAndUpdateOptions, ctx context.Context) (*T, bool, error) {
+	db := c.client.Database(c.db)
+	collection := db.Collection(c.collection)
+
+	result := collection.FindOneAndUpdate(ctx, query, updateFields, &updateOptions)
+
+	err := result.Err()
+	if err == mongo.ErrNoDocuments {
+		helpers.LogError(err, "no documents found for given query", map[string]any{"query": query, "update": updateFields, "collection": c.collection}, ctx)
+		return nil, false, nil
+	} else if err != nil {
+		helpers.LogError(err, "unexpected error when updating object in mongo", map[string]any{"query": query, "update": updateFields, "collection": c.collection}, ctx)
+		return nil, false, errors.New("unexpected error when updating object in mongo")
+	}
+
+	var object T
+	if err := result.Decode(&object); err != nil {
+		helpers.LogError(err, "unexpected error when decoding object updated in mongo", map[string]any{"query": query, "update": updateFields, "collection": c.collection}, ctx)
 		return nil, true, errors.New("unexpected error when decoding object updated in mongo")
 	}
 	return &object, true, nil
