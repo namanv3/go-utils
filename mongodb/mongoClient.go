@@ -21,6 +21,7 @@ type MongoClient[T any] interface {
 	ListWithSortOptions(query bson.M, sortOptions bson.D, ctx context.Context) ([]T, error)
 	Update(query bson.M, updateFields bson.M, upsert bool, ctx context.Context) (*T, bool, error)
 	UpdateWithOptions(query bson.M, updateFields bson.M, updateOptions options.FindOneAndUpdateOptions, ctx context.Context) (*T, bool, error)
+	UpdateManyWithOptions(query bson.M, updateFields bson.M, updateOptions options.UpdateOptions, ctx context.Context) (bool, error)
 	UpdateMany(query bson.M, updateFields bson.M, upsert bool, ctx context.Context) (int64, bool, error)
 	Delete(query bson.M, ctx context.Context) (deletedCount int64, err error)
 }
@@ -193,6 +194,22 @@ func (c DefaultMongoClient[T]) UpdateWithOptions(query bson.M, updateFields bson
 		return nil, true, errors.New("unexpected error when decoding object updated in mongo")
 	}
 	return &object, true, nil
+}
+
+func (c DefaultMongoClient[T]) UpdateManyWithOptions(query bson.M, updateFields bson.M, updateOptions options.UpdateOptions, ctx context.Context) (bool, error) {
+	db := c.client.Database(c.db)
+	collection := db.Collection(c.collection)
+
+	result, err := collection.UpdateMany(ctx, query, updateFields, &updateOptions)
+
+	if err == mongo.ErrNoDocuments || result.MatchedCount == 0 {
+		helpers.LogError(err, "no documents found for given query", map[string]any{"query": query, "update": updateFields, "collection": c.collection}, ctx)
+		return false, nil
+	} else if err != nil {
+		helpers.LogError(err, "unexpected error when updating object in mongo", map[string]any{"query": query, "update": updateFields, "collection": c.collection}, ctx)
+		return false, errors.New("unexpected error when updating object in mongo")
+	}
+	return true, nil
 }
 
 func (c DefaultMongoClient[T]) UpdateMany(query bson.M, updateFields bson.M, upsert bool, ctx context.Context) (int64, bool, error) {
