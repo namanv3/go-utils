@@ -59,7 +59,7 @@ func (c DefaultMongoClient[T]) Replace(query bson.M, object T, upsert bool, ctx 
 		helpers.LogError(err, "unexpected error when replacing object in mongo", map[string]any{"query": query, "replacement": object, "collection": c.collection}, ctx)
 		return false, errors.New("unexpected error when replacing object in mongo")
 	}
-	return result.MatchedCount > 0, nil
+	return result.ModifiedCount > 0 || result.UpsertedCount > 0, nil
 }
 
 func (c DefaultMongoClient[T]) InsertMany(objects []T, ctx context.Context) error {
