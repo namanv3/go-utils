@@ -8,6 +8,13 @@ func Ptr[T any](t T) *T {
 	return &t
 }
 
+func TrueorNil(b bool) *bool {
+	if b {
+		return &b
+	}
+	return nil
+}
+
 func FromByteArray[T any](tokenBytes []byte) (T, error) {
 	var obj T
 	err := json.Unmarshal(tokenBytes, &obj)
