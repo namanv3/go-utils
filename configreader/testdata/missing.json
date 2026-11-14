@@ -1,0 +1,7 @@
+{
+	"a": "${{MISSING_BETA}}",
+	"b": [
+		"${{MISSING_ALPHA}}",
+		"${{MISSING_BETA}}"
+	]
+}

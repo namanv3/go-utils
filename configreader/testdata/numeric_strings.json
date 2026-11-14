@@ -1,0 +1,4 @@
+{
+  "fromEnv": "${{NUMERIC_STRING_ENV}}",
+  "fromDefault": "${{NUMERIC_STRING_DEFAULT:-12345}}"
+}

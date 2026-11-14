@@ -1,0 +1,11 @@
+{
+  "server": {
+    "host": "${{JSON_HOST}}",
+    "port": "${{JSON_PORT}}"
+  },
+  "messages": [
+    "before ${{JSON_HOST}} after",
+    "${{JSON_GREETING:-hello there}}",
+    "${{JSON_EMPTY:-}}"
+  ]
+}
