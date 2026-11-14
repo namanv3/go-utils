@@ -24,6 +24,7 @@ type MongoClient[T any] interface {
 	UpdateManyWithOptions(query bson.M, updateFields bson.M, updateOptions options.UpdateOptions, ctx context.Context) (bool, error)
 	UpdateMany(query bson.M, updateFields bson.M, upsert bool, ctx context.Context) (int64, bool, error)
 	Delete(query bson.M, ctx context.Context) (deletedCount int64, err error)
+	EnsureIndexes(indexes []mongo.IndexModel, ctx context.Context) error
 }
 
 type DefaultMongoClient[T any] struct {
@@ -237,4 +238,12 @@ func (c DefaultMongoClient[T]) Delete(query bson.M, ctx context.Context) (delete
 		return 0, errors.New("unexpected error when deleting objects in mongo")
 	}
 	return result.DeletedCount, nil
+}
+
+func (c DefaultMongoClient[T]) EnsureIndexes(indexes []mongo.IndexModel, ctx context.Context) error {
+	collection := c.client.Database(c.db).Collection(c.collection)
+	if _, err := collection.Indexes().CreateMany(ctx, indexes); err != nil {
+		return fmt.Errorf("unable to create indexes for collection %q in database %q: %w", c.collection, c.db, err)
+	}
+	return nil
 }
