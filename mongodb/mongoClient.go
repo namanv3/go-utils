@@ -18,6 +18,7 @@ type MongoClient[T any] interface {
 	Find(query bson.M, ctx context.Context) (*T, error)
 	List(query bson.M, ctx context.Context) ([]T, error)
 	Aggregate(pipeline bson.A, ctx context.Context) ([]T, error)
+	AggregateWithCount(pipeline bson.A, limit, offset int64, ctx context.Context) ([]T, int64, error)
 	ListWithSortOptions(query bson.M, sortOptions bson.D, ctx context.Context) ([]T, error)
 	Update(query bson.M, updateFields bson.M, upsert bool, ctx context.Context) (*T, bool, error)
 	UpdateWithOptions(query bson.M, updateFields bson.M, updateOptions options.FindOneAndUpdateOptions, ctx context.Context) (*T, bool, error)
@@ -149,6 +150,45 @@ func (c DefaultMongoClient[T]) Aggregate(pipeline bson.A, ctx context.Context) (
 		elements = append(elements, element)
 	}
 	return elements, nil
+}
+
+// AggregateWithCount applies pipeline before counting its results and paginating
+// them. The pipeline should contain filtering and sorting, without pagination.
+func (c DefaultMongoClient[T]) AggregateWithCount(pipeline bson.A, limit, offset int64, ctx context.Context) ([]T, int64, error) {
+	stages := make(bson.A, 0, len(pipeline)+1)
+	stages = append(stages, pipeline...)
+	stages = append(stages, bson.M{"$facet": bson.M{
+		"items": bson.A{
+			bson.M{"$skip": offset},
+			bson.M{"$limit": limit},
+		},
+		"count": bson.A{bson.M{"$count": "total"}},
+	}})
+
+	collection := c.client.Database(c.db).Collection(c.collection)
+	cursor, err := collection.Aggregate(ctx, stages)
+	if err != nil {
+		return nil, 0, fmt.Errorf("unable to aggregate documents with a total count from collection %q in database %q: %w", c.collection, c.db, err)
+	}
+	defer cursor.Close(ctx)
+
+	var results []struct {
+		Items []T `bson:"items"`
+		Count []struct {
+			Total int64 `bson:"total"`
+		} `bson:"count"`
+	}
+	if err := cursor.All(ctx, &results); err != nil {
+		return nil, 0, fmt.Errorf("unable to read aggregation results with a total count from collection %q in database %q: %w", c.collection, c.db, err)
+	}
+	if len(results) == 0 {
+		return []T{}, 0, nil
+	}
+	var total int64
+	if len(results[0].Count) > 0 {
+		total = results[0].Count[0].Total
+	}
+	return results[0].Items, total, nil
 }
 
 func (c DefaultMongoClient[T]) Update(query bson.M, updateFields bson.M, upsert bool, ctx context.Context) (*T, bool, error) {
