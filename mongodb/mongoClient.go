@@ -16,6 +16,7 @@ type MongoClient[T any] interface {
 	Replace(query bson.M, object T, upsert bool, ctx context.Context) (bool, error)
 	InsertMany(objects []T, ctx context.Context) error
 	Find(query bson.M, ctx context.Context) (*T, error)
+	FindWithOptions(query bson.M, findOptions options.FindOneOptions, ctx context.Context) (*T, error)
 	List(query bson.M, ctx context.Context) ([]T, error)
 	Aggregate(pipeline bson.A, ctx context.Context) ([]T, error)
 	AggregateWithCount(pipeline bson.A, limit, offset int64, ctx context.Context) ([]T, int64, error)
@@ -103,9 +104,22 @@ func (c DefaultMongoClient[T]) Find(query bson.M, ctx context.Context) (*T, erro
 	return &object, nil
 }
 
+func (c DefaultMongoClient[T]) FindWithOptions(query bson.M, findOptions options.FindOneOptions, ctx context.Context) (*T, error) {
+	collection := c.client.Database(c.db).Collection(c.collection)
+	var object T
+	if err := collection.FindOne(ctx, query, &findOptions).Decode(&object); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("unable to find a document in collection %q in database %q: %w", c.collection, c.db, err)
+	}
+	return &object, nil
+}
+
 func (c DefaultMongoClient[T]) List(query bson.M, ctx context.Context) ([]T, error) {
 	return c.ListWithSortOptions(query, bson.D{}, ctx)
 }
+
 func (c DefaultMongoClient[T]) ListWithSortOptions(query bson.M, sortOptions bson.D, ctx context.Context) ([]T, error) {
 	db := c.client.Database(c.db)
 	collection := db.Collection(c.collection)
