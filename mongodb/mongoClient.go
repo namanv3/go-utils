@@ -48,6 +48,9 @@ func (c DefaultMongoClient[T]) Insert(object T, ctx context.Context) (bool, erro
 	collection := db.Collection(c.collection)
 	_, err := collection.InsertOne(ctx, object)
 	if err != nil {
+		if mongo.IsDuplicateKeyError(err) {
+			return false, err
+		}
 		helpers.LogError(err, "unexpected error when inserting object into mongo", map[string]any{"objectToInsert": object, "collection": c.collection}, ctx)
 		return false, errors.New("unexpected error when inserting object into mongo")
 	}
@@ -59,6 +62,9 @@ func (c DefaultMongoClient[T]) Replace(query bson.M, object T, upsert bool, ctx 
 	collection := db.Collection(c.collection)
 	result, err := collection.ReplaceOne(ctx, query, object, options.Replace().SetUpsert(upsert))
 	if err != nil {
+		if mongo.IsDuplicateKeyError(err) {
+			return false, err
+		}
 		helpers.LogError(err, "unexpected error when replacing object in mongo", map[string]any{"query": query, "replacement": object, "collection": c.collection}, ctx)
 		return false, errors.New("unexpected error when replacing object in mongo")
 	}
@@ -74,6 +80,9 @@ func (c DefaultMongoClient[T]) InsertMany(objects []T, ctx context.Context) erro
 	}
 	result, err := collection.InsertMany(ctx, interfaceList)
 	if err != nil {
+		if mongo.IsDuplicateKeyError(err) {
+			return err
+		}
 		helpers.LogError(err, "unexpected error when inserting object into mongo", map[string]any{"objectsToInsert": objects, "collection": c.collection}, ctx)
 		return errors.New("unexpected error when inserting object into mongo")
 	} else if len(result.InsertedIDs) != len(objects) {
@@ -149,7 +158,10 @@ func (c DefaultMongoClient[T]) Aggregate(pipeline bson.A, ctx context.Context) (
 	collection := db.Collection(c.collection)
 
 	cursor, err := collection.Aggregate(context.TODO(), pipeline)
-	if err != nil || cursor.Err() != nil {
+	if err != nil {
+		if mongo.IsDuplicateKeyError(err) {
+			return nil, err
+		}
 		helpers.LogError(err, "unexpected error when finding objects in mongo using pipeline", map[string]any{"pipeline": pipeline, "collection": c.collection}, ctx)
 		return nil, errors.New("unexpected error when finding objects in mongo using pipeline")
 	}
@@ -162,6 +174,13 @@ func (c DefaultMongoClient[T]) Aggregate(pipeline bson.A, ctx context.Context) (
 			return nil, errors.New("unexpected error when decoding object found in mongo using pipeline")
 		}
 		elements = append(elements, element)
+	}
+	if err := cursor.Err(); err != nil {
+		if mongo.IsDuplicateKeyError(err) {
+			return nil, err
+		}
+		helpers.LogError(err, "unexpected error when finding objects in mongo using pipeline", map[string]any{"pipeline": pipeline, "collection": c.collection}, ctx)
+		return nil, errors.New("unexpected error when finding objects in mongo using pipeline")
 	}
 	return elements, nil
 }
@@ -216,6 +235,9 @@ func (c DefaultMongoClient[T]) Update(query bson.M, updateFields bson.M, upsert 
 		helpers.LogError(err, "no documents found for given query", map[string]any{"query": query, "update": updateFields, "upsert": upsert, "collection": c.collection}, ctx)
 		return nil, false, nil
 	} else if err != nil {
+		if mongo.IsDuplicateKeyError(err) {
+			return nil, false, err
+		}
 		helpers.LogError(err, "unexpected error when updating object in mongo", map[string]any{"query": query, "update": updateFields, "upsert": upsert, "collection": c.collection}, ctx)
 		return nil, false, errors.New("unexpected error when updating object in mongo")
 	}
@@ -239,6 +261,9 @@ func (c DefaultMongoClient[T]) UpdateWithOptions(query bson.M, updateFields bson
 		helpers.LogError(err, "no documents found for given query", map[string]any{"query": query, "update": updateFields, "collection": c.collection}, ctx)
 		return nil, false, nil
 	} else if err != nil {
+		if mongo.IsDuplicateKeyError(err) {
+			return nil, false, err
+		}
 		helpers.LogError(err, "unexpected error when updating object in mongo", map[string]any{"query": query, "update": updateFields, "collection": c.collection}, ctx)
 		return nil, false, errors.New("unexpected error when updating object in mongo")
 	}
@@ -257,10 +282,13 @@ func (c DefaultMongoClient[T]) UpdateManyWithOptions(query bson.M, updateFields 
 
 	result, err := collection.UpdateMany(ctx, query, updateFields, &updateOptions)
 
-	if err == mongo.ErrNoDocuments || result.MatchedCount == 0 {
+	if err == mongo.ErrNoDocuments || (err == nil && result.MatchedCount == 0) {
 		helpers.LogError(err, "no documents found for given query", map[string]any{"query": query, "update": updateFields, "collection": c.collection}, ctx)
 		return false, nil
 	} else if err != nil {
+		if mongo.IsDuplicateKeyError(err) {
+			return false, err
+		}
 		helpers.LogError(err, "unexpected error when updating object in mongo", map[string]any{"query": query, "update": updateFields, "collection": c.collection}, ctx)
 		return false, errors.New("unexpected error when updating object in mongo")
 	}
@@ -276,6 +304,9 @@ func (c DefaultMongoClient[T]) UpdateMany(query bson.M, updateFields bson.M, ups
 		helpers.LogError(err, "no documents found for given query", map[string]any{"query": query, "update": updateFields, "upsert": upsert, "collection": c.collection}, ctx)
 		return 0, false, nil
 	} else if err != nil {
+		if mongo.IsDuplicateKeyError(err) {
+			return 0, false, err
+		}
 		helpers.LogError(err, "unexpected error when updating object in mongo", map[string]any{"query": query, "update": updateFields, "upsert": upsert, "collection": c.collection}, ctx)
 		return 0, false, errors.New("unexpected error when updating object in mongo")
 	}
