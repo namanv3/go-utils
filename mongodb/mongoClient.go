@@ -12,6 +12,7 @@ import (
 )
 
 type MongoClient[T any] interface {
+	GetCollectionName() string
 	Insert(object T, ctx context.Context) (bool, error)
 	Replace(query bson.M, object T, upsert bool, ctx context.Context) (bool, error)
 	InsertMany(objects []T, ctx context.Context) error
@@ -41,6 +42,11 @@ func NewMongoClient[T any](connection *mongo.Client, db, collection string) Mong
 		db:         db,
 		collection: collection,
 	}
+}
+
+// GetCollectionName returns the collection name configured for this client.
+func (c DefaultMongoClient[T]) GetCollectionName() string {
+	return c.collection
 }
 
 func (c DefaultMongoClient[T]) Insert(object T, ctx context.Context) (bool, error) {
